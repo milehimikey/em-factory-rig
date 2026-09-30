@@ -81,7 +81,9 @@ say which skill it comes from — or say plainly that it is your own addition.
 
 When the project is a rebuild of an earlier system, the earlier system is off limits unless the
 project's `pilot/NOTES.md` says otherwise. The domain comes from the human. If you find yourself
-reading the earlier repo, stop and tell your lead.
+reading the earlier repo, stop and tell your lead. This is enforced by convention, not a deny rule (a `Read()`
+deny rule makes Claude Code prompt on every `cd` + read compound). A read outside the project
+root still raises a native permission prompt, which the human refuses.
 
 ## One working tree, one git writer per tree
 
