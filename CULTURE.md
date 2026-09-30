@@ -123,7 +123,9 @@ nudges. Tag every qitem with the slice (`--slice <slice-key>`) and a stage tag
 | `stage:drift` | oversight.steward → owning lead | A conformance finding |
 
 Close a stage by `rig queue handoff` to the next owner, with `--summary` and, where there is
-one, `--evidence-ref` (the slice doc path, PR URL, or report path). A qitem is closed when it is
+one, `--evidence-ref` (the slice doc path, PR URL, or report path — always a path in the
+project repo or a URL; this culture file and the role guides live in the rig repo, not the
+project). A qitem is closed when it is
 handed off, not when you think it is accepted — acceptance is the next stage's verdict on its
 own qitem.
 
