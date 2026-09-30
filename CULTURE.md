@@ -8,6 +8,11 @@ against (`rig up rig.yaml --cwd <project>`), never in the rig.
 After startup or compaction, run `rig whoami --json` first. It tells you who you are, who your
 peers are, and how to reach them.
 
+**Addressing.** This file names seats as `pod.member` (`deliver.lead`). That is the topology
+id, not an address. A seat's session — what `rig send` and `rig queue --destination` take — is
+`<pod>-<member>@<rig>`: `deliver.lead` on rig `em-factory` is `deliver-lead@em-factory`. Take
+exact session names from `rig whoami --json`; never guess them.
+
 ## The shape of the team
 
 Two orchestrators, split along em's own phase boundary, with the human between them:

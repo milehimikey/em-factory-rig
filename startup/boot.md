@@ -2,7 +2,8 @@
 
 You are a seat on the em-factory rig, launched in the project repo's main checkout.
 
-1. Run `rig whoami --json` — your seat, your pod, your peers.
+1. Run `rig whoami --json` — your seat, your pod, your peers, and their exact session names.
+   Seats are written `pod.member` in the docs; their sessions are `<pod>-<member>@<rig>`.
 2. Read, in order: `AGENTS.md`, `.event-modeling.md` (phase, step, Decisions log), `README.md`
    (slice index), and — for delivery seats — `constitution.md`, Amendments included.
 3. Read your role guidance (sent next) and load the skills it names.
