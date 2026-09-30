@@ -1,0 +1,30 @@
+name: conform-steward
+version: "1.0"
+description: Advisory conformance on a cadence, pilot metrics, and routing findings to the owning lead
+
+defaults:
+  runtime: claude-code
+
+imports:
+  - ref: path:/Users/mikey/.local/share/mise/installs/node/lts/lib/node_modules/@openrig/cli/daemon/specs/agents/shared
+
+profiles:
+  default:
+    uses:
+      skills: [shared:verification-before-completion]
+      guidance: []
+      subagents: []
+      plugins: [shared:openrig-core]
+      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks]
+
+resources:
+  guidance:
+    - id: role
+      path: guidance/role.md
+
+startup:
+  files:
+    - path: guidance/role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

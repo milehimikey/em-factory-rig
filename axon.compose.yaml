@@ -1,0 +1,24 @@
+# Axon Server for the project under build — the event store the constitution names, and the only
+# one with Dynamic Consistency Boundary support. The rig boots it before any seat launches.
+# Dashboard on :8024, framework connection on :8124. Dev mode allows purging events; never for
+# production. Slice tests don't need it (they disable the connection); QA's by-effect checks do.
+services:
+  axon-server:
+    image: axoniq/axonserver:2025.2.0
+    hostname: axon-server
+    ports:
+      - "8024:8024"
+      - "8124:8124"
+    environment:
+      AXONIQ_AXONSERVER_HOSTNAME: axon-server
+      AXONIQ_AXONSERVER_STANDALONE_DCB: "true"
+      AXONIQ_AXONSERVER_DEVMODE_ENABLED: "true"
+    volumes:
+      - data:/axonserver/data
+      - events:/axonserver/events
+
+volumes:
+  data:
+    driver: local
+  events:
+    driver: local

@@ -1,0 +1,30 @@
+name: delivery-lead
+version: "1.0"
+description: Delivery orchestrator — gates ratified slices and carries each to a merge-ready PR
+
+defaults:
+  runtime: claude-code
+
+imports:
+  - ref: path:/Users/mikey/.local/share/mise/installs/node/lts/lib/node_modules/@openrig/cli/daemon/specs/agents/shared
+
+profiles:
+  default:
+    uses:
+      skills: [shared:orchestration-team, shared:systematic-debugging, shared:verification-before-completion]
+      guidance: []
+      subagents: []
+      plugins: [shared:openrig-core]
+      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks]
+
+resources:
+  guidance:
+    - id: role
+      path: guidance/role.md
+
+startup:
+  files:
+    - path: guidance/role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

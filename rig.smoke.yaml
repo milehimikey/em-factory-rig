@@ -1,0 +1,82 @@
+version: "0.2"
+name: em-factory-smoke
+summary: >
+  SMOKE TEST ONLY — four seats of em-factory to prove boot, messaging, queues, and permissions.
+  Full-cycle event-modeling team for an em project: a modeling orchestrator and a delivery
+  orchestrator with a live human between them as domain expert and sole ratifier. Discover →
+  model → slice → review → implement → conform. Launch against the project repo:
+  rig up rig.yaml --cwd <project>.
+culture_file: CULTURE.md
+permission_policy: policies/em-factory.policy.md
+# The project tracks AGENTS.md (em's agent contract); keep Claude seats' managed blocks out of git.
+managed_blocks:
+  claude-code: CLAUDE.local.md
+
+docs:
+  - path: README.md
+
+startup:
+  files:
+    - path: startup/boot.md
+      delivery_hint: send_text
+      required: true
+  actions: []
+
+services:
+  kind: compose
+  compose_file: axon.compose.yaml
+  project_name: em-factory
+  down_policy: leave_running
+  wait_for:
+    - url: http://127.0.0.1:8024/actuator/health
+  surfaces:
+    urls:
+      - name: Axon Server dashboard
+        url: http://127.0.0.1:8024
+      - name: Live model view
+        url: http://localhost:5173/?svg=toolshed.svg
+
+pods:
+  - id: model
+    label: Modeling
+    members:
+      - id: lead
+        label: Modeling lead (facilitator)
+        agent_ref: "local:agents/modeling-lead"
+        runtime: claude-code
+        model: claude-opus-5-5
+        profile: default
+        cwd: "."
+      - id: slicer1
+        label: Slice author 1
+        agent_ref: "local:agents/slice-author"
+        runtime: claude-code
+        model: claude-opus-5-5
+        profile: default
+        cwd: "."
+    edges:
+      - { kind: delegates_to, from: lead, to: slicer1 }
+
+  - id: deliver
+    label: Delivery
+    members:
+      - id: lead
+        label: Delivery lead (implementing-agent operator)
+        agent_ref: "local:agents/delivery-lead"
+        runtime: claude-code
+        model: claude-opus-5-5
+        profile: default
+        cwd: "."
+      - id: impl1
+        label: Implementer 1
+        agent_ref: "local:agents/slice-implementer"
+        runtime: claude-code
+        model: claude-sonnet-5
+        profile: default
+        cwd: "."
+    edges:
+      - { kind: delegates_to, from: lead, to: impl1 }
+
+edges:
+  - { kind: collaborates_with, from: model.lead, to: deliver.lead }
+  - { kind: escalates_to, from: deliver.lead, to: model.lead }
