@@ -70,16 +70,34 @@ rig ps --nodes
 1. `rig ps --nodes` — all four `ready`; `rig capture` on each shows role + culture received and
    `rig whoami --json` run.
 2. Permissions: in one Claude seat, `rig ps`, `em validate toolshed.em`, and `git status` run
-   without a prompt; `gh pr merge` is refused; reading `~/projects/toolshed` is refused.
+   without a prompt; `gh pr merge` is refused; reading outside the project (e.g. a rebuild's
+   earlier repo) raises a native prompt, which you refuse.
 3. Queues: `model.lead` creates a `stage:slice-doc` qitem for `slicer1` → slicer hands back →
    `model.lead` hands a fake `stage:ratified` to `deliver.lead` → `deliver.lead` sends a
-   `stage:gap` back → `model.lead` parks a question on `human@host` and you `rig queue resolve`
-   it. `rig queue transitions` shows every step.
-4. Managed blocks: `git status` in the project shows only `CLAUDE.local.md` (ignored) — no
-   OpenRig block in any tracked file.
+   `stage:gap` back → `model.lead` parks a question on `human@host` and you resolve it (see
+   [Answering the rig](#answering-the-rig)). `rig queue transitions` shows every step.
+4. Managed blocks and projections: `git status` in the project is clean — `CLAUDE.local.md`,
+   `.claude/skills/shared:*`, `.claude/plugins/` and `.openrig/` are all ignored, and no OpenRig
+   block lands in a tracked file.
 5. Stop it: `rig down em-factory-smoke`.
 
 Then launch the full rig. Nothing needs rebuilding between the two.
+
+## Answering the rig
+
+Human-routed work — domain questions, ratification requests, PRs to merge — is addressed to
+`human@host`. The `rig queue` verbs take the caller's identity from `OPENRIG_SESSION_NAME`
+(`--actor` is ignored); seat panes have it set, your own terminal doesn't. In the terminal you
+use to answer the rig:
+
+```bash
+export OPENRIG_SESSION_NAME=human@host
+rig queue list --state blocked                       # what's waiting on you
+rig queue show <qitem-id> --full                     # the decision brief
+rig queue resolve <qitem-id> --decision "<answer>"   # unparks it and nudges the owning seat
+```
+
+Without the variable, `resolve` fails with `actor_required`.
 
 ## Starting the cycle
 
