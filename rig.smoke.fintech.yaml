@@ -1,0 +1,66 @@
+version: "0.2"
+name: em-factory-fintech-smoke
+summary: >
+  SMOKE TEST ONLY. Four seats of the delivery pod to prove boot, permissions, queues and a clean
+  tree against the fintech repo. Launch: rig up rig.smoke.fintech.yaml --cwd <rig-host worktree>.
+culture_file: CULTURE.md
+permission_policy: policies/em-factory.policy.md
+managed_blocks:
+  claude-code: CLAUDE.local.md
+
+docs:
+  - path: README.md
+
+startup:
+  files:
+    - path: startup/boot.md
+      delivery_hint: send_text
+      required: true
+  actions: []
+
+pods:
+  - id: deliver
+    label: Delivery
+    summary: Build chain slices under the build-assumption protocol and carry each to a PR a human merges.
+    continuity_policy:
+      enabled: true
+      sync_triggers: [pre_compaction, pre_shutdown, milestone]
+      artifacts:
+        session_log: true
+        restore_brief: true
+      restore_protocol:
+        peer_driven: true
+        verify_via_quiz: false
+    members:
+      - id: lead
+        label: Delivery lead (implementing-agent operator)
+        agent_ref: "local:agents/delivery-lead"
+        runtime: claude-code
+        model: claude-opus-5-5
+        profile: default
+        cwd: "."
+      - id: impl1
+        label: Implementer 1
+        agent_ref: "local:agents/slice-implementer"
+        runtime: claude-code
+        model: claude-sonnet-5
+        profile: default
+        cwd: "."
+      - id: qa
+        label: QA
+        agent_ref: "local:agents/slice-qa"
+        runtime: claude-code
+        model: claude-sonnet-5
+        profile: default
+        cwd: "."
+      - id: reviewer
+        label: PR reviewer
+        agent_ref: "local:agents/pr-reviewer"
+        runtime: claude-code
+        model: claude-opus-5-5
+        profile: default
+        cwd: "."
+    edges:
+      - { kind: delegates_to, from: lead, to: impl1 }
+      - { kind: delegates_to, from: lead, to: qa }
+      - { kind: delegates_to, from: lead, to: reviewer }

@@ -3,10 +3,10 @@ version: "1.0"
 description: Independent critic of the model and draft slice docs before the human sees them
 
 defaults:
-  runtime: codex
+  runtime: claude-code
 
 imports:
-  - ref: path:/Users/mikey/.local/share/mise/installs/node/lts/lib/node_modules/@openrig/cli/daemon/specs/agents/shared
+  - ref: local:../shared
 
 profiles:
   default:
@@ -15,7 +15,7 @@ profiles:
       guidance: []
       subagents: []
       plugins: [shared:openrig-core]
-      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks]
+      runtime_resources: [shared:claude-activity-hooks]
 
 resources:
   guidance:
