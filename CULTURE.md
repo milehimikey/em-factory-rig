@@ -1,8 +1,9 @@
 # em-factory — team culture
 
 This rig takes an em event model through its whole lifecycle — discover, model, slice,
-review, implement, conform — with a live human as domain expert and sole ratifier. It is
-project-agnostic: everything about the domain lives in the project repo the rig is launched
+review, implement, conform — with a live human as domain expert. In the fintech sprint only the delivery pod runs: it
+builds slices before they are ratified, recording every decision it has to make as a build
+assumption. It is project-agnostic: everything about the domain lives in the project repo the rig is launched
 against (`rig up rig.yaml --cwd <project>`), never in the rig.
 
 After startup or compaction, run `rig whoami --json` first. It tells you who you are, who your
@@ -10,98 +11,107 @@ peers are, and how to reach them.
 
 **Addressing.** This file names seats as `pod.member` (`deliver.lead`). That is the topology
 id, not an address. A seat's session — what `rig send` and `rig queue --destination` take — is
-`<pod>-<member>@<rig>`: `deliver.lead` on rig `em-factory` is `deliver-lead@em-factory`. Take
+`<pod>-<member>@<rig>`: `deliver.lead` on rig `em-factory-fintech` is `deliver-lead@em-factory-fintech`. Take
 exact session names from `rig whoami --json`; never guess them.
 
 ## The shape of the team
 
-Two orchestrators, split along em's own phase boundary, with the human between them:
+In the fintech sprint only the delivery pod runs. The modeling track is a separate team of
+humans and is not a seat here. The human is `human@host`.
 
 ```
-            human (domain expert, sole ratifier)
-              ▲ questions            │ answers, ratifications, merges
-              │                      ▼
- model pod ── model.lead ──ratified slices──▶ deliver.lead ── deliver pod
- modeler, slicer1, slicer2, critic          impl1-3, qa, reviewer
-              ▲                                   │
-              └──────── gaps (spec holes) ────────┘
-                         oversight.steward: conform + metrics, routes findings to the owning lead
+            human@host (domain expert, answers when available; merges go to CODEOWNERS approvers)
+              ^ assumptions, gaps, merge requests     | buildable slices, rulings
+              |                                       v
+                              deliver.lead
+                   impl1, impl2, impl3, qa, reviewer
 ```
 
-- **model.lead** runs discover, model, slice and review. It owns `.event-modeling.md` and its
-  Decisions log, and is the only seat that talks domain with the human.
-- **deliver.lead** pulls ratified slices in timeline order, gates them, and carries each to a
-  merged PR.
-- A slice crosses from modeling to delivery **only** when the human has ratified it. No seat
-  ever runs `em slice ratify`, edits `ratifiedBy`, or makes a readiness gate pass.
+- **human@host** sends each slice to `deliver.lead` as a `stage:buildable` qitem. The qitem
+  names the slice key (em's export key, for example `o2c-0039-finalize-invoice`), the model
+  file, the ticket number, the assumption ids already recorded for it, and the exit check it
+  serves. Seats cannot read the sprint plan files; the qitem is the brief.
+- **deliver.lead** applies the build-ready check, hands the slice to an implementer, and
+  carries the PR to `stage:merge`.
+- No seat ever changes a slice doc's `status`, edits `reviewedBy`, `reviewedOn`, `ratifiedBy`
+  or `ratifiedOn`, edits an `.event-modeling.md` Decisions log or a `.em` file, or runs
+  `em slice review`, `em slice ratify`, `em slice reratify` or `em slice mark-implemented`.
 
 ## Where the authority lives
 
 The project repo is the single source of truth. Read these before acting, in this order:
 
-1. `AGENTS.md` — the em agent contract (`em contract` prints it in full).
-2. `.event-modeling.md` — current phase and step, participants, and the **Decisions log**.
-3. `README.md` — the generated slice index (the one place slices are enumerated).
-4. `constitution.md` — the house rules for implementation, including its **Amendments**, which
-   win where they differ from the sections above them.
-5. `slices/<key>.md` — a slice doc is the read-only spec for that slice.
+1. `AGENTS.md`, the em agent contract (`mise exec -- em contract` prints it in full). Where it
+   says a slice must pass `em validate --slice-ready` and that the gate is a ratification
+   decision, this sprint's build-ready check below replaces it for chain slices; the
+   ratification gate itself is unchanged and is not yours.
+2. The model directory named in your qitem (`design/models/<ctx>/`): `.event-modeling.md`
+   (read-only for you) and `README.md` (the generated slice index).
+3. `.specify/memory/constitution.md`, the house rules for implementation.
+4. `design/models/<ctx>/slices/<slice-key>.md`, the read-only spec for the slice, plus the
+   `typespec/` directory beside it.
 
-The em skills live in the project at `.claude/skills/event-modeling*/SKILL.md`. Claude seats
-load them as skills; Codex seats read those files directly. When you propose a process step,
+The em skills live in the project at `.claude/skills/event-modeling*/SKILL.md`. Seats load
+them as skills. When you propose a process step,
 say which skill it comes from — or say plainly that it is your own addition.
 
 ## Ground rules (these are rulings, not suggestions)
 
-- **Slice in timeline order.** Work starts at the storyboard's beginning and proceeds along the
-  timeline. Never propose "riskiest first", and never ask the human which slice to do first.
+- **Order comes from the qitem.** `human@host` sends slices in the order the sprint plan gives.
+  Within that order, follow timeline order unless a dependency says otherwise. Raising the
+  riskiest assumption early is encouraged.
 - **Search the Decisions log before asking.** An "open" question may already have a ratified
   answer. Grep `.event-modeling.md` (and the slice docs) first; ask only what is genuinely
-  unanswered, and never re-propose something the log records as rejected.
+  unanswered, and never re-propose something the log records as rejected. If it is still
+  unanswered and it affects the code you are writing, record a build assumption and keep
+  building. Do not wait for an answer.
 - **Slice docs are specs, not agent logs.** Never narrate tool versions, rule names, fold
-  history, or who-did-what in a slice doc body. That goes in commits, PR descriptions, and
-  `pilot/NOTES.md`.
-- **Review sets `reviewed`; humans ratify.** The review walkthrough flips a slice whose
-  questions are all resolved from `draft` to `reviewed` and refreshes the index. Ratification
-  is a separate human gate. Never prompt for it during review.
-- **Events first, then slices never touch each other.** The first delivery PR creates every
-  event class in its emitting slice's package. After that, one branch and one PR per slice
-  against main — no integration branch, no stacked branches, no edits outside the slice's own
-  package. Needing something from outside the package is a gap, not a reason to edit it.
+  history, or who-did-what in a slice doc body. That goes in commits and PR descriptions. Assumptions go only in the A-line under the
+  slice's Open Questions (or in its `## Build Assumptions` section when the doc has no Open
+  Questions heading).
+- **Each domain's first PR creates only the event classes of the chain slices that domain
+  builds**, in the emitting slice's package. After that, one branch and one PR per slice against
+  main; no integration branch, no stacked branches, no edits outside the slice's own package. An
+  automation and its translation pair may share one branch and PR (ADR-0024). Needing something
+  from outside the package is a gap, not a reason to edit it.
 - **Again views are one read slice.** A read model shown `again` later on the timeline is one
-  projection, implemented once, in one PR that marks every position implemented.
+  projection, implemented once, in one PR that adds the `implementedIn:` line to every
+  position's slice doc.
 - **Commands and views are the API.** Every State Change slice exposes its command and every
   State View its query, resource-style over REST, listed in the PR. Automation commands stay
   internal. Never ask whether a slice needs HTTP — the model's UI boxes answer it.
-- **Gaps go back to the model, never into code.** An implementer who has to guess stops and
-  reports the gap. Guessing silently is the one unforgivable failure.
+- **Decisions are recorded assumptions.** An implementer who must decide writes an A-line under
+  the slice's open question (id, what the code does, `Overturned if:`, `Tests:`), cites the id in
+  the test name, asks `deliver.lead` for the FIN key, and keeps building. Silent guessing stays
+  forbidden. Stop and send `stage:gap` only for a constitution NON-NEGOTIABLE, money
+  representation, retention or audit-envelope question, or for a change to the slice doc body,
+  the `.em` file or another domain's package.
 - **The human merges.** No seat merges a PR. The implementing-agent operator never merges its
-  own work.
-
-## Blind rebuild
-
-When the project is a rebuild of an earlier system, the earlier system is off limits unless the
-project's `pilot/NOTES.md` says otherwise. The domain comes from the human. If you find yourself
-reading the earlier repo, stop and tell your lead. This is enforced by convention, not a deny rule (a `Read()`
-deny rule makes Claude Code prompt on every `cd` + read compound). A read outside the project
-root still raises a native permission prompt, which the human refuses.
+  own work. A PR built by this rig is merged by a CODEOWNERS approver other than the person
+  operating the rig.
 
 ## One working tree, one git writer per tree
 
-Every seat launches in the project's main checkout. To keep that tree coherent:
-
-- **The main checkout belongs to the model pod.** `model.modeler` is the only seat that edits the
-  `.em` file. Slicers edit only the slice docs they are assigned. `model.lead` edits the state
-  file and README and is the **only seat that runs git in the main checkout** — it commits the
-  model pod's work with explicit paths (never `git add -A` or `git add .`) and opens the
-  modeling PRs.
-- **Delivery works only in worktrees.** `deliver.lead` creates one worktree per slice at
-  `.claude/worktrees/<slice-key>` on branch `impl/<slice-key>` and assigns it to exactly one
-  implementer. Implementers never touch the main checkout.
-- **Review seats are read-only in the main checkout.** They check out a PR into their own
-  worktree (`.claude/worktrees/review-<pr>`) to run anything.
-- OpenRig writes managed instruction blocks into `CLAUDE.local.md` (gitignored) and, for Codex
-  seats, into `AGENTS.md`. Never commit an OpenRig managed block. If one appears in a diff,
-  leave it out of the commit.
+- **The rig-host worktree** is where every seat starts. It is a herdr worktree of the project
+  repo. `deliver.lead` is the only seat that runs git in it, and only for reading (`git status`,
+  `git fetch`, `git log`). Nothing is built there.
+- **Every slice gets its own worktree**, created by `deliver.lead` with herdr:
+  `herdr worktree create --cwd <rig-host worktree> --branch fin-<ticket>-<slice-key> --base origin/main --path /Users/mkey/.herdr/worktrees/fintech/fin-<ticket>-<slice-key> --no-focus`.
+  The implementer it is assigned to is the only git writer there. Implementers never touch the
+  rig-host worktree or the main checkout.
+- **Review seats** create their own worktree from the pushed slice branch:
+  `herdr worktree create --cwd <rig-host worktree> --branch fin-<ticket>-<slice-key>-review --base origin/fin-<ticket>-<slice-key> --path /Users/mkey/.herdr/worktrees/fintech/fin-<ticket>-<slice-key>-review --no-focus`,
+  read-only, removed with `herdr worktree remove` when done. They never share a worktree or a
+  branch with an implementer.
+- Branch names are lowercase, ticket first: `fin-<ticket>-<slice-key>`. The ticket number is in
+  the qitem; never invent one.
+- **Tests share one stack.** `human@host` starts the project's compose stack once
+  (`docker compose up -d`). Run tests as `./gradlew spotlessCheck test -x composeUp -x composeDown`
+  and never start or stop the stack yourself. Run at most one Gradle test task at a time across
+  the rig; tell `deliver.lead` before you start one.
+- OpenRig writes managed instruction blocks into `CLAUDE.local.md` (ignored). Never commit an
+  OpenRig managed block. If one appears in a diff, leave it out of the commit. Commit with
+  explicit paths, never `git add -A` or `git add .`.
 
 ## How work moves: the queue is the ledger
 
@@ -111,18 +121,13 @@ nudges. Tag every qitem with the slice (`--slice <slice-key>`) and a stage tag
 
 | Stage tag | From → to | What the qitem carries |
 |---|---|---|
-| `stage:model` | model.lead → model.modeler | A model edit to make (events, storyboard, commands, views, swimlanes) |
-| `stage:slice-doc` | model.lead → slicer1/slicer2 | A slice key to write in depth, in timeline order |
-| `stage:critique` | slicer → model.critic | A draft slice doc (or the whole model) to check |
-| `stage:question` | model.lead → human | A batch of domain questions (see "Talking to the human") |
-| `stage:ratify` | model.lead → human | Slices at `reviewed`, ready for the human to ratify |
-| `stage:ratified` | model.lead → deliver.lead | A ratified slice key; delivery may gate and build it |
-| `stage:build` | deliver.lead → impl1/2/3 | A gated slice, its worktree path and branch |
-| `stage:qa` | implementer → deliver.qa | A PR: tests traced to invariants and scenarios |
+| `stage:buildable` | human@host → deliver.lead | A slice key, model file, ticket number, known A-ids, and the exit check it serves. It has not been ratified; the word only means the build-ready check may now run |
+| `stage:build` | deliver.lead → impl1/2/3 | The gated slice, its worktree path and branch |
+| `stage:assumption` | implementer → deliver.lead → human@host | A proposed A-line (id request, what the code does, `Overturned if:`), so `human@host` can create the FIN Task and return the key |
+| `stage:qa` | implementer → deliver.qa | A PR: tests traced to invariants, scenarios and A-ids |
 | `stage:review` | deliver.qa → deliver.reviewer | A PR that passed QA |
-| `stage:merge` | deliver.reviewer → deliver.lead → human | A PR ready for the human to merge |
-| `stage:gap` | implementer → deliver.lead → model.lead | A hole in the spec; goes back to modeling |
-| `stage:drift` | oversight.steward → owning lead | A conformance finding |
+| `stage:merge` | deliver.reviewer → deliver.lead → human@host | A PR ready for a CODEOWNERS approver to merge |
+| `stage:gap` | implementer → deliver.lead → human@host | A true gap: a question that cannot become an assumption |
 
 Close a stage by `rig queue handoff` to the next owner, with `--summary` and, where there is
 one, `--evidence-ref` (the slice doc path, PR URL, or report path — always a path in the
@@ -133,25 +138,27 @@ own qitem.
 
 ## Talking to the human
 
-The human is `human@host`. Only the two leads and the steward route work to the human; every
-other seat goes through its lead. Human-routed qitems require `--summary` and `--evidence-ref`.
+The human is `human@host`. Only `deliver.lead` routes work to the human; every other seat goes
+through it. Human-routed qitems require `--summary` and `--evidence-ref`.
 
-- **Batch questions.** Collect what the slicers and critic surface, de-duplicate against the
-  Decisions log, and send one decision brief rather than a stream of pings.
+- **Batch questions.** Collect what the implementers surface, check each against the slice
+  doc's Open Questions and existing A-lines, and send `human@host` one brief per working block.
+  Cross-domain assumptions (event ownership, shared identifiers, a contract shape another domain
+  consumes, the billing clock) always go in the brief; `human@host` confirms the same day.
 - **Offer choices.** Each question states the options you see, your recommendation, and what
   changes depending on the answer. Plain language — no rule IDs or insider jargon.
-- **Record every answer** in the Decisions log with the date and "(Mike Key)" attribution, and
-  what was rejected, before acting on it.
-- If you are blocked on the human, park the qitem with
+- **Record every answer** in the qitem's `rig queue resolve --decision` text and, if it settles
+  an A-line, update that A-line. Never write any `.event-modeling.md` Decisions log.
+- Default: record the assumption and continue. Park a qitem with
   `rig queue block <id> --on human@host --summary ... --evidence-ref ... --continuation ...`
-  and move on to other work. Do not stall silently.
+  only when the answer cannot be defaulted, then move to the next slice.
 
-## Quality over speed
+## Deadline
 
-There is no deadline. A slice doc that answers every question an implementer will ask is worth
-more than three that don't. A PR with every invariant traced to a test is worth more than two
-that merely pass. Run the check and read its output before you claim anything is done, passing,
-or fixed.
+The chain is deployed dark by Mon 2026-10-19. A built slice with recorded assumptions beats a
+perfect slice doc. A PR with every invariant and every assumption traced to a test is worth more
+than two that merely pass. Run the check and read its output before you claim anything is done,
+passing, or fixed.
 
 ## When blocked
 
@@ -159,4 +166,5 @@ or fixed.
   going with what you can do.
 - On a peer: `rig send <session> "waiting on <specific thing>" --verify`; escalate to your lead
   if there is no answer.
-- On a missing decision: that is a question for the human, routed through your lead.
+- On a missing decision: record a build assumption. Route it through your lead only if it
+  cannot be defaulted.
