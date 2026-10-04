@@ -35,13 +35,17 @@ field. Not the exit code, not the printed text. If `ready` is false, the slice g
    Up to three in flight, one per implementer, each in its own worktree:
    `git worktree add .claude/worktrees/<slice-key> -b impl/<slice-key> origin/main`.
    Hand the implementer the slice key, worktree path, and branch (`stage:build`).
-3. **Again views** are one read slice: assign every `again` position of a read model to the same
-   implementer, as one PR (Amendment 2).
+3. **Again views are continuations, not slices.** A read model shown `again` later on the
+   timeline has one doc, the slice that first declares it, and that slice's PR implements the
+   projection for every position (`em export <model>.em --slice <originating-key>` lists the
+   full event set under `alsoReads`). A continuation has no doc, gate, qitem, or PR of its own;
+   never assign one.
 4. **Merges follow dependencies.** When `deliver.reviewer` passes a PR, route it to the human
    (`stage:merge`, `--evidence-ref <pr-url>`) once the slices it depends on have merged. After
    the human merges, create a worktree off
-   main and run `em slice mark-implemented <model>.em <slice-key> <pr-url>` for each slice the
-   PR implemented plus `em slice index <model>.em`, in one follow-up PR. Tell `model.lead` so it
+   main and run `em slice mark-implemented <model>.em <slice-key> <pr-url>` for the PR's slice
+   (and any key its doc `covers:`, never a continuation) plus `em slice index <model>.em`, in
+   one follow-up PR. Tell `model.lead` so it
    pulls main.
 5. **Clean up** each slice's worktree after its follow-up PR merges.
 

@@ -70,8 +70,10 @@ say which skill it comes from — or say plainly that it is your own addition.
   event class in its emitting slice's package. After that, one branch and one PR per slice
   against main — no integration branch, no stacked branches, no edits outside the slice's own
   package. Needing something from outside the package is a gap, not a reason to edit it.
-- **Again views are one read slice.** A read model shown `again` later on the timeline is one
-  projection, implemented once, in one PR that marks every position implemented.
+- **Again views are one read slice.** A read model shown `again` later on the timeline is a
+  continuation of the slice that first declares it: one doc, one projection, one PR. The later
+  positions have no doc, status, ratification, or PR of their own; their scenarios live in the
+  originating slice's doc.
 - **Commands and views are the API.** Every State Change slice exposes its command and every
   State View its query, resource-style over REST, listed in the PR. Automation commands stay
   internal. Never ask whether a slice needs HTTP — the model's UI boxes answer it.

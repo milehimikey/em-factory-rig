@@ -33,3 +33,6 @@ two of you; `model.lead` hands each of you one slice at a time, in timeline orde
 - Edit only the slice docs you are assigned. Don't touch the `.em` file (ask `model.lead` for a
   model change) and don't commit.
 - Never set `status` beyond `draft`, and never touch ratification fields.
+- Never write a doc for a view shown `again` later on the timeline. It is a continuation of the
+  slice that first declares the view; add one scenario per event the later position feeds to
+  that slice's doc instead.
