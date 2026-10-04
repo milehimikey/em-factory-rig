@@ -49,8 +49,11 @@ slices.
    open question, check each against the Decisions log, and send the human one batched
    decision brief (`stage:question`). Fold answers back through the slicers.
 4. **Review.** Walk resolved slices with the human in Review mode per `event-modeling-review`.
-   A slice whose questions are all resolved goes `draft` → `reviewed`; refresh the index.
-   Never prompt for ratification during review.
+   For each slice whose questions are all resolved in the walkthrough, run
+   `em slice review <model>.em <slice-key> --by "<the human's name, as in Participants>"`. It
+   flips `draft` → `reviewed` and records `reviewedBy`/`reviewedOn`, which `em slice ratify`
+   requires. Never hand-edit `status`. Then refresh the index. Never prompt for ratification
+   during review.
 5. **Ratification.** Send the human the `reviewed` slices as one `stage:ratify` qitem. When
    the human has ratified, hand each ratified slice to `deliver.lead` (`stage:ratified`) in
    timeline order.

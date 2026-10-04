@@ -63,9 +63,10 @@ say which skill it comes from — or say plainly that it is your own addition.
 - **Slice docs are specs, not agent logs.** Never narrate tool versions, rule names, fold
   history, or who-did-what in a slice doc body. That goes in commits, PR descriptions, and
   `pilot/NOTES.md`.
-- **Review sets `reviewed`; humans ratify.** The review walkthrough flips a slice whose
-  questions are all resolved from `draft` to `reviewed` and refreshes the index. Ratification
-  is a separate human gate. Never prompt for it during review.
+- **Review sets `reviewed`; humans ratify.** The review walkthrough moves a slice whose
+  questions are all resolved from `draft` to `reviewed` with `em slice review`, never by
+  hand-editing `status` (`em slice ratify` refuses a slice with no recorded review), and
+  refreshes the index. Ratification is a separate human gate. Never prompt for it during review.
 - **Events first, then slices never touch each other.** The first delivery PR creates every
   event class in its emitting slice's package. After that, one branch and one PR per slice
   against main — no integration branch, no stacked branches, no edits outside the slice's own
