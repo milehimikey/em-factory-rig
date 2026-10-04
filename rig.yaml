@@ -96,7 +96,7 @@ pods:
 
   - id: deliver
     label: Delivery
-    summary: Gate ratified slices and carry each, in timeline order, to a PR the human merges.
+    summary: Gate ratified slices and carry each, in dependency order, to a PR the human merges.
     continuity_policy:
       enabled: true
       sync_triggers: [pre_compaction, pre_shutdown, milestone]

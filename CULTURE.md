@@ -30,8 +30,8 @@ Two orchestrators, split along em's own phase boundary, with the human between t
 
 - **model.lead** runs discover, model, slice and review. It owns `.event-modeling.md` and its
   Decisions log, and is the only seat that talks domain with the human.
-- **deliver.lead** pulls ratified slices in timeline order, gates them, and carries each to a
-  merged PR.
+- **deliver.lead** pulls ratified slices, gates them, builds them in dependency order, and
+  carries each to a merged PR.
 - A slice crosses from modeling to delivery **only** when the human has ratified it. No seat
   ever runs `em slice ratify`, edits `ratifiedBy`, or makes a readiness gate pass.
 
@@ -52,8 +52,11 @@ say which skill it comes from — or say plainly that it is your own addition.
 
 ## Ground rules (these are rulings, not suggestions)
 
-- **Slice in timeline order.** Work starts at the storyboard's beginning and proceeds along the
-  timeline. Never propose "riskiest first", and never ask the human which slice to do first.
+- **Timeline order for the model, dependency order for the build.** Slicing, review and
+  ratification start at the storyboard's beginning and proceed along the timeline. Delivery
+  builds in dependency order, taken from `em query upstream` (`em contract`, "Order of work"),
+  and among the slices that are startable takes the earliest on the timeline. Never propose
+  "riskiest first", and never ask the human which slice to do first.
 - **Search the Decisions log before asking.** An "open" question may already have a ratified
   answer. Grep `.event-modeling.md` (and the slice docs) first; ask only what is genuinely
   unanswered, and never re-propose something the log records as rejected.
