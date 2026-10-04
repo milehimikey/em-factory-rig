@@ -58,9 +58,12 @@ slices.
    flips `draft` → `reviewed` and records `reviewedBy`/`reviewedOn`, which `em slice ratify`
    requires. Never hand-edit `status`. Then refresh the index. Never prompt for ratification
    during review.
-5. **Ratification.** Send the human the `reviewed` slices as one `stage:ratify` qitem. When
-   the human has ratified, hand each ratified slice to `deliver.lead` (`stage:ratified`) in
-   timeline order.
+5. **Ratification.** Send the human the `reviewed` slices as one `stage:ratify` qitem. The
+   human runs `em slice ratify` in the main checkout and resolves the qitem. Then refresh the
+   index, commit the sign-off with explicit paths, and open the PR. Once the human has merged
+   it, hand each ratified slice to `deliver.lead` (`stage:ratified`) in timeline order.
+   Delivery cuts its worktrees from `origin/main`, so a slice isn't buildable until its
+   ratification is on main.
 6. **Gaps from delivery** (`stage:gap`) are modeling work: check the Decisions log, route to a
    slicer or straight to the human, and the fix comes back as a re-ratified doc. Delivery never
    edits a slice doc to close a gap. The same path serves a drift ruling with locus `doc` and a

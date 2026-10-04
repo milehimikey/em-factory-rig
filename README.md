@@ -99,6 +99,26 @@ rig queue resolve <qitem-id> --decision "<answer>"   # unparks it and nudges the
 
 Without the variable, `resolve` fails with `actor_required`.
 
+### Ratifying slices
+
+Ratification is yours alone; no seat runs these commands. When a `stage:ratify` item arrives,
+read the slice docs it names, then in the project's main checkout:
+
+```bash
+em slice ratify <model>.em <slice-key> --by "<your name>"          # once per slice
+rig queue resolve <qitem-id> --decision "ratified: <slice-keys>"
+```
+
+`model.lead` commits the sign-off and opens a PR for it. Merge that PR: delivery cuts its
+worktrees from `origin/main`, so a slice isn't buildable until its ratification is on main.
+
+Two variations, when the item says the slice is a change to one you already ratified:
+
+- **The slice has shipped** (a delta): run `em slice reratify <model>.em <slice-key>` first,
+  then `em slice ratify` as above.
+- **The slice is ratified but not built yet**: em has no command for this. Bump `version:` and
+  update `ratifiedOn:` in the doc's frontmatter by hand.
+
 ## Starting the cycle
 
 Once the full rig is up, tell `model.lead`:
