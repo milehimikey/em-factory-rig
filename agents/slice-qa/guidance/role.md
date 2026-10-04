@@ -16,7 +16,10 @@ Read directly: `.claude/skills/event-modeling-implement/SKILL.md` (what "traceab
    scenario → its test. Any row without a test is a finding. A test whose name cites an ID but
    doesn't exercise it is a finding.
 3. **Green.** Run `./gradlew ktlintCheck test` and
-   `em coverage <model>.em --tests src/test/kotlin --strict` yourself and read the output.
+   `em coverage <model>.em --tests src/test/kotlin --include-ready --json | jq '.slices[] | select(.key == "<slice-key>")'`
+   yourself and read the output: the slice's entry has `inScope: true` and every invariant
+   `cited: true`. Don't accept a plain `--strict` run as evidence; it skips a slice that is still
+   `ready-to-implement`.
 4. **By effect.** Start the app against the rig's Axon Server and exercise each endpoint the PR
    lists: the happy path, and each rejection returning `422` ProblemDetail with the right
    `invariant` and `reason`.

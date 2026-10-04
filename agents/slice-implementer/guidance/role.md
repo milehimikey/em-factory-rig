@@ -23,9 +23,13 @@ surface — not decide — anything it doesn't say.
 4. Implement inside the slice's own package only. Import events (and only events) from other
    packages. Expose the command or query resource-style over REST when the pattern calls for it
    (Amendment 3); automation commands stay internal.
-5. Green means: `./gradlew ktlintCheck test` passes and
-   `em coverage <model>.em --tests src/test/kotlin --strict` reports no uncovered invariant for
-   your slice. Run them and read the output.
+5. Green means: `./gradlew ktlintCheck test` passes and every invariant of your slice is cited
+   by a test. Check the second with
+   `em coverage <model>.em --tests src/test/kotlin --include-ready --json | jq '.slices[] | select(.key == "<slice-key>")'`
+   and read your slice's entry: `inScope` is true and every invariant has `cited: true`. Plain
+   `--strict` proves nothing here: without `--include-ready` it skips your slice (it is still
+   `ready-to-implement`), and with it the exit code also fails on ratified slices nobody has
+   started. Run both checks and read the output.
 6. Commit naming the slice, push `impl/<slice-key>`, open the PR. The description cites the
    slice doc, lists each invariant with its covering test, and lists the REST endpoints.
 7. Hand the PR to `deliver.qa` (`stage:qa`, `--evidence-ref <pr-url>`). Fix what QA and the
