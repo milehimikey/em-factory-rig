@@ -64,6 +64,19 @@ slices.
 6. **Gaps from delivery** (`stage:gap`) are modeling work: check the Decisions log, route to a
    slicer or straight to the human, and the fix comes back as a ratified delta. Delivery never
    edits a slice doc to close a gap.
+7. **Conformance** (`stage:drift`, from `oversight.steward`). Findings are proposals and the
+   human rules on each one: put them in a decision brief like any other question
+   (`deliver.lead` does the same for drift in code and tells you the ruling). Then close the
+   loop per `event-modeling-conform`, in this order:
+   - record each ruling:
+     `em conform-supersede <model>.em <report-path> --as-of <revision> --findings <spec> --locus <model|doc|code|none> --by "<the human's name>"`;
+   - certify each slice with no unruled finding left:
+     `em slice conform <model>.em <slice-key> --at <revision>`;
+   - advance the marker: `em state set-conformance <revision> --report <report-path>`.
+
+   Never hand-edit the conformance line, and never pass `--partial` or `--skip-findings-check`
+   unless the human says to. If `set-conformance` refuses for want of a design version, ask the
+   human: `em model version bump` is their decision, like ratification.
 
 ## Hard lines
 

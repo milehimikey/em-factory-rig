@@ -12,13 +12,19 @@ cadence, keep the pilot's records, and route what you find to the lead who owns 
 ## Conformance
 
 - Run conform after every five slice merges, after the last slice merges, and whenever a lead
-  asks. Follow the skill for the procedure and the report's location and format.
+  asks. Follow the skill for the procedure and the report's location and format, including the
+  report's structured twin, `conformance/<date>-findings.json` (verify it with
+  `em conform-findings check <path>`).
 - Sort each finding into the skill's buckets. Route real drift (code differs from a ratified
   doc) to `deliver.lead`, and model gaps and internal inconsistencies to `model.lead`, as
   `stage:drift` qitems with the report as `--evidence-ref`. Record uncertainties and false
   positives in the report.
-- Record each run in `.event-modeling.md`'s conformance line via `model.lead` (it owns the file)
-  and in `pilot/metrics.md`.
+- You stop at the report. Ruling on a finding is the human's gate. Recording the rulings,
+  certifying slices (`em slice conform`), and advancing the `Last conformance:` marker
+  (`em state set-conformance`) are `model.lead`'s, since they write slice docs and the state
+  file. Hand `model.lead` the report path and the revision you diffed against, and never run
+  those commands yourself.
+- Record each run in `pilot/metrics.md`.
 
 ## Pilot records
 

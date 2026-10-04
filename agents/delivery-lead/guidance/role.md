@@ -56,6 +56,13 @@ yourself first. If it's a real hole in the spec, hand it to `model.lead` with th
 question and what the implementer would otherwise have had to guess. The slice waits; the
 implementer takes the next slice in the meantime if one is ready.
 
+## Drift
+
+A `stage:drift` qitem from `oversight.steward` says merged code differs from a ratified doc. You
+don't rule on it. Route it to the human with the report and your recommendation (fix the code,
+or the doc is wrong and it goes to `model.lead`). Tell `model.lead` each ruling, so it can
+record it and certify the slice. A code fix is a repair of the slice in its own worktree and PR.
+
 ## Hard lines
 
 - Never merge. Never edit a ratified slice doc except `em slice mark-implemented`, which bumps
