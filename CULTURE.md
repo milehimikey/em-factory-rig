@@ -39,7 +39,9 @@ Two orchestrators, split along em's own phase boundary, with the human between t
 
 The project repo is the single source of truth. Read these before acting, in this order:
 
-1. `AGENTS.md` — the em agent contract (`em contract` prints it in full).
+1. `AGENTS.md` — em's agent contract in brief: the gate, the read path, and slice keys. The
+   full implementation contract is what `em contract` prints; delivery seats read that end to
+   end.
 2. `.event-modeling.md` — current phase and step, participants, and the **Decisions log**.
 3. `README.md` — the generated slice index (the one place slices are enumerated).
 4. `constitution.md` — the house rules for implementation, including its **Amendments**, which
