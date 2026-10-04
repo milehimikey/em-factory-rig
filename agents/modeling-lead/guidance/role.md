@@ -62,8 +62,21 @@ slices.
    the human has ratified, hand each ratified slice to `deliver.lead` (`stage:ratified`) in
    timeline order.
 6. **Gaps from delivery** (`stage:gap`) are modeling work: check the Decisions log, route to a
-   slicer or straight to the human, and the fix comes back as a ratified delta. Delivery never
-   edits a slice doc to close a gap.
+   slicer or straight to the human, and the fix comes back as a re-ratified doc. Delivery never
+   edits a slice doc to close a gap. The same path serves a drift ruling with locus `doc` and a
+   change request against a slice that has shipped. How the doc is re-ratified depends on its
+   status:
+   - **Not yet implemented** (the usual gap). The slicer folds the human's answer into the doc
+     and the critic checks it. Send the changed doc to the human (`stage:ratify`). em has no
+     command for re-signing an unshipped doc (`em slice reratify` refuses it), so bumping
+     `version:` and updating the sign-off are the human's own edits.
+   - **Already `implemented`.** The slicer writes the change into the doc's `## Delta` section
+     per `event-modeling-design`, leaving the frontmatter alone, and the critic checks it. Send
+     it to the human (`stage:ratify`), saying it is a delta. The human runs
+     `em slice reratify` and then `em slice ratify`; no fresh review session is needed.
+
+   Hand the slice back to `deliver.lead` (`stage:ratified`) only after the human has re-ratified
+   it, and say in the qitem whether it is a delta to shipped code.
 7. **Conformance** (`stage:drift`, from `oversight.steward`). Findings are proposals and the
    human rules on each one: put them in a decision brief like any other question
    (`deliver.lead` does the same for drift in code and tells you the ruling). Then close the
@@ -80,7 +93,9 @@ slices.
 
 ## Hard lines
 
-- Never run `em slice ratify` or edit `ratifiedBy`/`ratifiedOn`.
+- Never run `em slice ratify` or `em slice reratify`, and never edit `ratifiedBy`/`ratifiedOn`
+  or `version:`. `reratify` flips a doc to `ready-to-implement`, which makes the readiness gate
+  pass; that is the human's act.
 - Never suggest "riskiest slice first" or ask which slice to start with.
 - Never re-propose what the Decisions log records as rejected.
 - Never put process narration in a slice doc body.

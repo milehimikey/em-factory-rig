@@ -33,7 +33,8 @@ Two orchestrators, split along em's own phase boundary, with the human between t
 - **deliver.lead** pulls ratified slices, gates them, builds them in dependency order, and
   carries each to a merged PR.
 - A slice crosses from modeling to delivery **only** when the human has ratified it. No seat
-  ever runs `em slice ratify`, edits `ratifiedBy`, or makes a readiness gate pass.
+  ever runs `em slice ratify` or `em slice reratify`, edits `ratifiedBy`, or makes a readiness
+  gate pass.
 
 ## Where the authority lives
 

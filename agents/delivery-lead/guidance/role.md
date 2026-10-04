@@ -56,6 +56,18 @@ yourself first. If it's a real hole in the spec, hand it to `model.lead` with th
 question and what the implementer would otherwise have had to guess. The slice waits; the
 implementer takes the next slice in the meantime if one is ready.
 
+## Deltas
+
+A `stage:ratified` qitem marked as a delta changes code that has already merged: the doc has a
+`version` above 1 and a `## Delta` section. Follow `em contract` section 3:
+
+- The implementer touches what the `## Delta` section names and leaves the rest. Never
+  regenerate a merged slice from its doc.
+- If the delta adds or changes an event, land that event change first, as its own PR in the
+  emitting slice's package, before the delta's PR opens.
+- After the delta's PR merges, run `em slice mark-implemented` with the new PR URL as usual. If
+  it refuses, don't hand-edit the frontmatter; take the conflict to the human.
+
 ## Drift
 
 A `stage:drift` qitem from `oversight.steward` says merged code differs from a ratified doc. You
