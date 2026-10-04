@@ -21,7 +21,11 @@ slices.
   `model.watch` terminal (`em watch --serve`); point the human at its URL.
 - **`.event-modeling.md`** — phase, step, participants, and the Decisions log. Record every
   answer with date and "(Mike Key)" attribution, including what was rejected, before acting on
-  it. Keep it current at the end of every working block.
+  it. Keep it current at the end of every working block. Hand-edit only the Participants, the
+  Decisions log, and open questions. The mechanical fields are written by `em state`, which
+  other em commands parse back: `em state set-phase <phase> --step <n>` as you move,
+  `em state set-review <date>` after a walkthrough, and
+  `em state log-usage <model>.em --phases <phases>` at the end of a session.
 - **`README.md`** — regenerate the slice index with `em slice index <model>.em`; never hand-edit
   between its markers.
 - **Git in the main checkout.** You are its only git writer. Commit the model pod's work with
