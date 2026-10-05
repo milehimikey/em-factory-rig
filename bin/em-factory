@@ -1,0 +1,425 @@
+#!/usr/bin/env node
+'use strict';
+
+// Launches the em-factory rig against one em project. Reads what the project already records
+// (model file, em version), takes the launch choices as flags (pods, runtime profile, who runs
+// Axon Server), renders a rig spec from lib/topology.js, and hands it to `rig up`.
+
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { EM_RANGE, CONTINUITY, PODS, CROSS_POD_EDGES, SUMMARY } = require('../lib/topology');
+
+const RIG_ROOT = path.resolve(__dirname, '..');
+const POD_IDS = PODS.map((p) => p.id);
+const RUNTIMES = ['claude', 'mixed'];
+const AXON = ['rig', 'project'];
+
+const USAGE = `Usage:
+  em-factory up <project> [options]      launch the rig against an em project
+  em-factory add <pod> <project> [options]  add a pod to the running rig
+  em-factory check <project> [options]   run the project checks only
+  em-factory spec <project> [options]    print the spec that \`up\` would launch
+
+Options:
+  --pods <list>      pods to launch, comma-separated: ${POD_IDS.join(', ')} (default: all)
+  --runtime <name>   claude: every seat on Claude Code, checks on a different model (default)
+                     mixed:  critic, QA and reviewer on Codex
+  --axon <owner>     rig: the rig boots Axon Server; project: the project runs its own
+                     (default: project if it has a compose file, else rig)
+  --name <rig>       rig name (default: em-factory, or em-factory-smoke with --smoke)
+  --smoke            the smoke subset: leads, one slicer, one implementer, the critic
+  --plan             preview: write the spec and run \`rig up --plan\`, launch nothing
+  --skip-checks      launch even if a project check fails`;
+
+function fail(message) {
+  console.error(`em-factory: ${message}`);
+  process.exit(1);
+}
+
+function parseArgs(argv) {
+  const valued = new Set(['--pods', '--runtime', '--axon', '--name']);
+  const flags = new Set(['--smoke', '--plan', '--skip-checks', '--help', '-h']);
+  const opts = { _: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (valued.has(arg)) {
+      if (argv[i + 1] === undefined) fail(`${arg} needs a value`);
+      opts[arg.slice(2)] = argv[++i];
+    } else if (flags.has(arg)) {
+      opts[arg.replace(/^-+/, '')] = true;
+    } else if (arg.startsWith('-')) {
+      fail(`unknown option ${arg}\n\n${USAGE}`);
+    } else {
+      opts._.push(arg);
+    }
+  }
+  return opts;
+}
+
+function run(cmd, args, options = {}) {
+  const res = spawnSync(cmd, args, { encoding: 'utf8', ...options });
+  return { ok: res.status === 0, status: res.status, stdout: res.stdout || '', stderr: res.stderr || '', missing: Boolean(res.error) };
+}
+
+function which(cmd) {
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    const candidate = path.join(dir, cmd);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
+}
+
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  }
+  return 0;
+}
+
+function inEmRange(version) {
+  return compareVersions(version, EM_RANGE.atLeast) >= 0 && compareVersions(version, EM_RANGE.below) < 0;
+}
+
+const RANGE_TEXT = `>=${EM_RANGE.atLeast} <${EM_RANGE.below}`;
+
+// ---- the project ----
+
+function readProject(projectArg) {
+  if (!projectArg) fail(`missing <project>\n\n${USAGE}`);
+  const project = path.resolve(projectArg);
+  if (!fs.existsSync(project) || !fs.statSync(project).isDirectory()) fail(`${project} is not a directory`);
+  if (!which('em')) fail('`em` is not on PATH (npm i -g @milehimikey/em)');
+  const state = run('em', ['state', 'read', project]);
+  if (!state.ok) {
+    fail(`${project} has no readable em state file. Run \`em scaffold\` (new project) or \`em upgrade <model>.em --apply\` (existing one) first.\n${state.stderr.trim()}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(state.stdout);
+  } catch {
+    fail(`could not parse \`em state read\` output for ${project}`);
+  }
+  if (!parsed.modelPath) fail(`${project}/.event-modeling.md names no model file`);
+  return {
+    project,
+    modelPath: parsed.modelPath,
+    svgPath: parsed.modelPath.replace(/\.em$/, '') + '.svg',
+    emVersion: parsed.emVersion || null,
+  };
+}
+
+function hasComposeFile(project) {
+  return ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'].some((f) => fs.existsSync(path.join(project, f)));
+}
+
+function checkProject(ctx, opts) {
+  const errors = [];
+  const warnings = [];
+  const { project } = ctx;
+
+  const installed = run('em', ['--version']).stdout.trim();
+  if (!inEmRange(installed)) errors.push(`installed em is ${installed}; this rig supports ${RANGE_TEXT}`);
+  if (ctx.emVersion && !inEmRange(ctx.emVersion)) {
+    errors.push(`the project was last upgraded to em ${ctx.emVersion}; this rig supports ${RANGE_TEXT}. Run \`em upgrade ${ctx.modelPath} --apply\` in the project.`);
+  }
+  if (!fs.existsSync(path.join(project, ctx.modelPath))) errors.push(`model file ${ctx.modelPath} does not exist`);
+  if (!fs.existsSync(path.join(project, '.claude', 'skills', 'event-modeling'))) {
+    errors.push('the event-modeling skills are not installed in the project. Run `em skill install` there.');
+  } else if (!run('em', ['skill', 'check', project]).ok) {
+    errors.push(`the project's vendored event-modeling skills differ from the installed em. Run \`em upgrade ${ctx.modelPath} --apply\` in the project.`);
+  }
+  if (!which('rig')) errors.push('`rig` is not on PATH (OpenRig is not installed)');
+  if (opts.runtime === 'mixed' && !which('codex')) errors.push('--runtime mixed needs `codex` on PATH');
+  if (opts.pods.includes('deliver') && !fs.existsSync(path.join(project, 'constitution.md'))) {
+    errors.push('constitution.md is missing; the delivery pod builds by it');
+  }
+
+  if (!fs.existsSync(path.join(project, '.git'))) {
+    errors.push('the project is not a git repository');
+  } else if (!run('git', ['-C', project, 'remote']).stdout.trim()) {
+    warnings.push('the project has no git remote; PRs and em CI need a GitHub remote');
+  }
+  const codeowners = ['CODEOWNERS', '.github/CODEOWNERS', 'docs/CODEOWNERS']
+    .map((f) => path.join(project, f))
+    .find((f) => fs.existsSync(f));
+  if (!codeowners || !fs.readFileSync(codeowners, 'utf8').includes('slices/')) {
+    warnings.push('no CODEOWNERS rule on slices/**; ratification PRs will not be routed to the human');
+  }
+  if (!fs.existsSync(path.join(project, '.claude', 'settings.json'))) {
+    warnings.push('.claude/settings.json is missing; seats will prompt for every command (see README, "Project prerequisites")');
+  }
+  if (opts.axon === 'rig' && !which('docker')) warnings.push('--axon rig needs Docker to boot Axon Server');
+  return { errors, warnings };
+}
+
+// ---- OpenRig's shared agent package ----
+
+// Every agent imports `local:../shared`. That path is a symlink to the shared package inside
+// the installed OpenRig, made here, so no machine-specific path is committed.
+function linkSharedAgents() {
+  const rigBin = which('rig');
+  if (!rigBin) return;
+  let dir = path.dirname(fs.realpathSync(rigBin));
+  let shared = null;
+  for (let i = 0; i < 5 && !shared; i++) {
+    const candidate = path.join(dir, 'daemon', 'specs', 'agents', 'shared');
+    if (fs.existsSync(path.join(candidate, 'agent.yaml'))) shared = candidate;
+    dir = path.dirname(dir);
+  }
+  if (!shared) fail(`could not find OpenRig's shared agent package near ${rigBin}`);
+  const link = path.join(RIG_ROOT, 'agents', 'shared');
+  let stat = null;
+  try {
+    stat = fs.lstatSync(link);
+  } catch {
+    // not there yet
+  }
+  if (stat && !stat.isSymbolicLink()) return; // a vendored copy; leave it alone
+  if (stat && fs.readlinkSync(link) === shared) return;
+  if (stat) fs.unlinkSync(link);
+  fs.symlinkSync(shared, link, 'dir');
+}
+
+// ---- the spec ----
+
+function shellQuote(value) {
+  return /^[A-Za-z0-9_.\/-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function edge([kind, from, to]) {
+  return { kind, from, to };
+}
+
+function buildMember(member, ctx, opts) {
+  if (member.terminal === 'watch') {
+    return {
+      id: member.id,
+      label: member.label,
+      agent_ref: 'builtin:terminal',
+      runtime: 'terminal',
+      profile: 'none',
+      cwd: ctx.project,
+      startup: {
+        files: [],
+        actions: [{ type: 'send_text', value: `em watch ${shellQuote(ctx.modelPath)} -o ${shellQuote(ctx.svgPath)} --serve`, phase: 'after_ready', idempotent: true }],
+      },
+    };
+  }
+  const out = { id: member.id, label: member.label, agent_ref: `local:agents/${member.agent}` };
+  if (member.check && opts.runtime === 'mixed') {
+    out.runtime = 'codex';
+  } else {
+    out.runtime = 'claude-code';
+    out.model = member.check ? member.check.model : member.model;
+  }
+  out.profile = 'default';
+  out.cwd = ctx.project;
+  return out;
+}
+
+function buildPod(pod, ctx, opts) {
+  const members = pod.members.filter((m) => !opts.smoke || m.smoke);
+  const ids = new Set(members.map((m) => m.id));
+  const out = { id: pod.id, label: pod.label, summary: pod.summary };
+  if (pod.continuity) out.continuity_policy = CONTINUITY;
+  out.members = members.map((m) => buildMember(m, ctx, opts));
+  out.edges = pod.edges.filter(([, from, to]) => ids.has(from) && ids.has(to)).map(edge);
+  return out;
+}
+
+function buildSpec(ctx, opts) {
+  const pods = PODS.filter((p) => opts.pods.includes(p.id))
+    .map((p) => buildPod(p, ctx, opts))
+    .filter((p) => p.members.length > 0);
+  const nodes = new Set(pods.flatMap((p) => p.members.map((m) => `${p.id}.${m.id}`)));
+  const spec = {
+    version: '0.2',
+    name: opts.name,
+    summary: `${opts.smoke ? 'SMOKE TEST ONLY: a subset of em-factory to prove boot, messaging, queues, and permissions. ' : ''}${SUMMARY} Project: ${ctx.project}.`,
+    culture_file: 'CULTURE.md',
+    permission_policy: 'policies/em-factory.policy.md',
+    // The project tracks AGENTS.md (em's agent contract); keep Claude seats' managed blocks out of git.
+    managed_blocks: { 'claude-code': 'CLAUDE.local.md' },
+    docs: [{ path: 'README.md' }],
+    startup: { files: [{ path: 'startup/boot.md', delivery_hint: 'send_text', required: true }], actions: [] },
+  };
+  if (opts.axon === 'rig') {
+    const urls = [{ name: 'Axon Server dashboard', url: 'http://127.0.0.1:8024' }];
+    if (nodes.has('view.watch')) urls.push({ name: 'Live model view', url: liveViewUrl(ctx) });
+    spec.services = {
+      kind: 'compose',
+      compose_file: 'axon.compose.yaml',
+      project_name: 'em-factory',
+      down_policy: 'leave_running',
+      wait_for: [{ url: 'http://127.0.0.1:8024/actuator/health' }],
+      surfaces: { urls },
+    };
+  }
+  spec.pods = pods;
+  spec.edges = CROSS_POD_EDGES.filter(([, from, to]) => nodes.has(from) && nodes.has(to)).map(edge);
+  return spec;
+}
+
+function liveViewUrl(ctx) {
+  return `http://localhost:5173/?svg=${encodeURIComponent(ctx.svgPath)}`;
+}
+
+// ---- YAML ----
+
+function scalar(value) {
+  if (typeof value !== 'string') return String(value);
+  return /^[A-Za-z][A-Za-z0-9_.\/-]*$/.test(value) && !/^(true|false|null|yes|no|on|off)$/i.test(value) ? value : JSON.stringify(value);
+}
+
+function isScalar(value) {
+  return value === null || typeof value !== 'object';
+}
+
+function isEmpty(value) {
+  return Array.isArray(value) ? value.length === 0 : Object.keys(value).length === 0;
+}
+
+function toYaml(value, indent = 0) {
+  const pad = ' '.repeat(indent);
+  const lines = [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (isScalar(item)) {
+        lines.push(`${pad}- ${scalar(item)}`);
+      } else {
+        const nested = toYaml(item, indent + 2).split('\n');
+        nested[0] = `${pad}- ${nested[0].slice(indent + 2)}`;
+        lines.push(...nested);
+      }
+    }
+    return lines.join('\n');
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (isScalar(item)) lines.push(`${pad}${key}: ${scalar(item)}`);
+    else if (isEmpty(item)) lines.push(`${pad}${key}: ${Array.isArray(item) ? '[]' : '{}'}`);
+    else lines.push(`${pad}${key}:`, toYaml(item, indent + 2));
+  }
+  return lines.join('\n');
+}
+
+function writeGenerated(file, header, body) {
+  fs.writeFileSync(file, `# GENERATED by bin/em-factory. Do not edit; change lib/topology.js or the launch flags.\n# ${header}\n${toYaml(body)}\n`);
+  return file;
+}
+
+// ---- commands ----
+
+function resolveOptions(raw, ctx) {
+  const opts = { smoke: Boolean(raw.smoke), plan: Boolean(raw.plan), skipChecks: Boolean(raw['skip-checks']) };
+  opts.runtime = raw.runtime || 'claude';
+  if (!RUNTIMES.includes(opts.runtime)) fail(`--runtime must be one of: ${RUNTIMES.join(', ')}`);
+  opts.axon = raw.axon || (hasComposeFile(ctx.project) ? 'project' : 'rig');
+  if (!AXON.includes(opts.axon)) fail(`--axon must be one of: ${AXON.join(', ')}`);
+  opts.pods = raw.pods ? raw.pods.split(',').map((p) => p.trim()).filter(Boolean) : opts.smoke ? ['model', 'deliver'] : POD_IDS;
+  const unknown = opts.pods.filter((p) => !POD_IDS.includes(p));
+  if (unknown.length) fail(`unknown pod(s): ${unknown.join(', ')}. Pods: ${POD_IDS.join(', ')}`);
+  opts.name = raw.name || (opts.smoke ? 'em-factory-smoke' : 'em-factory');
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(opts.name)) fail('--name must be lowercase letters, digits, - and _');
+  return opts;
+}
+
+function reportChecks(ctx, opts) {
+  const { errors, warnings } = checkProject(ctx, opts);
+  for (const w of warnings) console.error(`  warning: ${w}`);
+  for (const e of errors) console.error(`  error: ${e}`);
+  if (errors.length && !opts.skipChecks) fail(`${errors.length} project check(s) failed (--skip-checks to launch anyway)`);
+  return errors.length === 0;
+}
+
+function describe(ctx, opts) {
+  return `project ${ctx.project} · model ${ctx.modelPath} · pods ${opts.pods.join(',')} · runtime ${opts.runtime} · axon ${opts.axon}${opts.smoke ? ' · smoke' : ''}`;
+}
+
+function cmdUp(raw) {
+  const ctx = readProject(raw._[0]);
+  const opts = resolveOptions(raw, ctx);
+  console.error(`em-factory up: ${describe(ctx, opts)}`);
+  reportChecks(ctx, opts);
+  linkSharedAgents();
+  const file = writeGenerated(path.join(RIG_ROOT, `rig.${opts.name}.generated.yaml`), describe(ctx, opts), buildSpec(ctx, opts));
+  const valid = run('rig', ['spec', 'validate', file]);
+  if (!valid.ok) fail(`generated spec failed validation:\n${valid.stdout}${valid.stderr}`);
+  const up = spawnSync('rig', ['up', file, ...(opts.plan ? ['--plan'] : [])], { stdio: 'inherit' });
+  if (up.status !== 0) process.exit(up.status || 1);
+  if (opts.plan) return;
+  console.error('');
+  if (opts.pods.includes('view') && !opts.smoke) console.error(`Live model view: ${liveViewUrl(ctx)}`);
+  if (opts.axon === 'project') console.error('Axon Server: the project runs its own; start it before QA needs it.');
+  console.error(`Answer the rig as human@host (README, "Answering the rig"). Stop it: rig down ${opts.name}`);
+}
+
+function cmdAdd(raw) {
+  const podId = raw._[0];
+  if (!POD_IDS.includes(podId)) fail(`add needs a pod: ${POD_IDS.join(', ')}\n\n${USAGE}`);
+  const ctx = readProject(raw._[1]);
+  const opts = resolveOptions({ ...raw, pods: podId }, ctx);
+  console.error(`em-factory add: ${describe(ctx, opts)} · rig ${opts.name}`);
+  reportChecks(ctx, opts);
+  linkSharedAgents();
+
+  const ps = run('rig', ['ps', '--nodes', '--rig', opts.name, '--json']);
+  let running = [];
+  try {
+    running = JSON.parse(ps.stdout);
+  } catch {
+    // handled below
+  }
+  if (!ps.ok || !Array.isArray(running) || running.length === 0) fail(`no rig named ${opts.name} (start one with \`em-factory up\`)`);
+  const existing = new Set(running.map((n) => n.logicalId));
+  if ([...existing].some((id) => id.startsWith(`${podId}.`))) fail(`rig ${opts.name} already has a ${podId} pod`);
+
+  const pod = buildPod(PODS.find((p) => p.id === podId), ctx, opts);
+  const added = new Set(pod.members.map((m) => `${podId}.${m.id}`));
+  const known = new Set([...existing, ...added]);
+  const crossPodEdges = CROSS_POD_EDGES.filter(([, from, to]) => known.has(from) && known.has(to) && (added.has(from) || added.has(to))).map(edge);
+  const file = writeGenerated(path.join(RIG_ROOT, `pod.${opts.name}.${podId}.generated.yaml`), describe(ctx, opts), { pod, crossPodEdges });
+  if (opts.plan) {
+    console.log(fs.readFileSync(file, 'utf8'));
+    return;
+  }
+  const expand = spawnSync('rig', ['expand', running[0].rigId, file, '--rig-root', RIG_ROOT], { stdio: 'inherit' });
+  if (expand.status !== 0) process.exit(expand.status || 1);
+  if (podId === 'view') console.error(`Start the live view in the new terminal: em watch ${shellQuote(ctx.modelPath)} -o ${shellQuote(ctx.svgPath)} --serve`);
+}
+
+function cmdCheck(raw) {
+  const ctx = readProject(raw._[0]);
+  const opts = resolveOptions(raw, ctx);
+  console.error(`em-factory check: ${describe(ctx, opts)}`);
+  const ok = reportChecks(ctx, { ...opts, skipChecks: true });
+  console.error(ok ? '  ok' : '  failed');
+  process.exit(ok ? 0 : 1);
+}
+
+function cmdSpec(raw) {
+  const ctx = readProject(raw._[0]);
+  const opts = resolveOptions(raw, ctx);
+  console.log(toYaml(buildSpec(ctx, opts)));
+}
+
+function main() {
+  const [command, ...rest] = process.argv.slice(2);
+  const raw = parseArgs(rest);
+  if (!command || command === '--help' || command === '-h' || raw.help || raw.h) {
+    console.log(USAGE);
+    return;
+  }
+  const commands = { up: cmdUp, add: cmdAdd, check: cmdCheck, spec: cmdSpec };
+  if (!commands[command]) fail(`unknown command ${command}\n\n${USAGE}`);
+  commands[command](raw);
+}
+
+main();

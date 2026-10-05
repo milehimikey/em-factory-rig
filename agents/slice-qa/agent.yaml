@@ -6,7 +6,7 @@ defaults:
   runtime: codex
 
 imports:
-  - ref: path:/Users/mikey/.local/share/mise/installs/node/lts/lib/node_modules/@openrig/cli/daemon/specs/agents/shared
+  - ref: local:../shared
 
 profiles:
   default:
