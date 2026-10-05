@@ -42,6 +42,9 @@ axon.compose.yaml     Axon Server, booted before any seat
 
 A project the rig can run against has:
 
+- em 1.13.1 or later, both installed and vendored (`em upgrade <model>.em` brings an older
+  project's skill bundle and CI block up to date). The role guides use `em coverage --slice`
+  and `em slice reratify` on an unshipped doc, which arrived in 1.13.1.
 - `em scaffold`, `em skill install`, `em ci init` done, CODEOWNERS on `slices/**`
 - `constitution.md` (the implementation house rules)
 - `.claude/settings.json` and `.codex/rules/em-factory.rules` translating the policy into native
@@ -112,12 +115,9 @@ rig queue resolve <qitem-id> --decision "ratified: <slice-keys>"
 `model.lead` commits the sign-off and opens a PR for it. Merge that PR: delivery cuts its
 worktrees from `origin/main`, so a slice isn't buildable until its ratification is on main.
 
-Two variations, when the item says the slice is a change to one you already ratified:
-
-- **The slice has shipped** (a delta): run `em slice reratify <model>.em <slice-key>` first,
-  then `em slice ratify` as above.
-- **The slice is ratified but not built yet**: em has no command for this. Bump `version:` and
-  update `ratifiedOn:` in the doc's frontmatter by hand.
+When the item says the slice is a change to one you already ratified (a gap fixed before it
+was built, or a delta to a slice that has shipped), run
+`em slice reratify <model>.em <slice-key>` first, then `em slice ratify` as above.
 
 ## Starting the cycle
 

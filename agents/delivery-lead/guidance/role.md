@@ -17,7 +17,9 @@ never decide domain questions — those go back to `model.lead`.
 For every `stage:ratified` slice, run
 `em validate <model>.em --slice-ready <slice-key> --json` and read the JSON document's `ready`
 field. Not the exit code, not the printed text. If `ready` is false, the slice goes back to
-`model.lead` with the gate output. Never make a gate pass yourself.
+`model.lead` with the gate output. Never make a gate pass yourself. `ready: true` alone is not
+a go: build only slices that reached you as `stage:ratified`, because the gate also reads
+`ready` on a doc the human is partway through re-ratifying.
 
 ## The order of work
 
