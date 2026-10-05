@@ -392,6 +392,14 @@ function cmdAdd(raw) {
   }
   const expand = spawnSync('rig', ['expand', running[0].rigId, file, '--rig-root', RIG_ROOT], { stdio: 'inherit' });
   if (expand.status !== 0) process.exit(expand.status || 1);
+  // `rig expand` delivers each agent's own startup files and the culture, but not the rig-level
+  // boot context that `rig up` sends every seat. Send it here.
+  const boot = fs.readFileSync(path.join(RIG_ROOT, 'startup', 'boot.md'), 'utf8');
+  for (const member of pod.members.filter((m) => m.runtime !== 'terminal')) {
+    const session = `${podId}-${member.id}@${opts.name}`;
+    const sent = run('rig', ['send', session, `From the operator (em-factory add). You joined a rig that was already running.\n\n${boot}`]);
+    console.error(sent.ok ? `  boot context sent to ${session}` : `  warning: could not send the boot context to ${session}; send startup/boot.md by hand`);
+  }
   if (podId === 'view') console.error(`Start the live view in the new terminal: em watch ${shellQuote(ctx.modelPath)} -o ${shellQuote(ctx.svgPath)} --serve`);
 }
 

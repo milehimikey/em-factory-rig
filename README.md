@@ -35,6 +35,8 @@ is in [CULTURE.md](CULTURE.md). Each role's guidance is in `agents/<role>/guidan
 ```
 bin/em-factory        the launcher: checks the project, renders the rig spec, runs `rig up`
 lib/topology.js       the team as data: pods, seats, models, edges, supported em range
+bin/check-em-contract verifies the installed em against what the guides rely on (runs in CI)
+lib/em-contract.js    the em commands, flags, skills and JSON fields the rig depends on
 CULTURE.md            team operating manual (delivered to every seat)
 startup/boot.md       boot context (delivered to every seat)
 agents/<role>/        AgentSpec + role guidance, importing OpenRig's shared builtins
@@ -63,6 +65,23 @@ A project the rig can run against has:
 
 `bin/em-factory check <project>` reports which of these are missing. A wrong em version,
 missing or stale skills, and a missing constitution block the launch; the rest are warnings.
+
+## The em contract
+
+The culture and role guides call em commands by name, so an em release can break the rig
+without changing a line here. Three things guard against that:
+
+- `lib/topology.js` declares the supported em range. The launcher refuses to start outside it,
+  for both the installed em and the version the project was last upgraded to.
+- `lib/em-contract.js` lists every em command, flag, skill and JSON field the rig relies on.
+- `bin/check-em-contract` verifies that list against the installed em, fails if a guide uses an
+  em command or flag that is not on the list, and runs the slice lifecycle the guides describe
+  (review, ratify, gate, scoped coverage, reratify, mark-implemented) on a scratch project.
+
+CI runs the check against the low end of the range, which must pass, and against the latest
+em, which shows a breaking release early. To widen the range: run
+`bin/check-em-contract --any-version` on the new em, re-read the guides against its release
+notes, then change `EM_RANGE`.
 
 ## Launch
 
@@ -107,8 +126,8 @@ you use. Pass criteria:
    `.claude/skills/shared:*`, `.claude/plugins/` and `.openrig/` are all ignored, and no OpenRig
    block lands in a tracked file.
 5. Adding a pod: `bin/em-factory add oversight <project> --name em-factory-smoke`, then check
-   that `oversight.steward` is `ready`, received its role and the culture, and can exchange a
-   qitem with `model.lead`.
+   that `oversight.steward` is `ready`, received the boot context, its role and the culture,
+   and can send a qitem to `model.lead`.
 6. Stop it: `rig down em-factory-smoke`.
 
 Then launch the full rig. Nothing needs rebuilding between the two.

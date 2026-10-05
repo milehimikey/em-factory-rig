@@ -1,0 +1,188 @@
+#!/usr/bin/env node
+'use strict';
+
+// Checks that the installed em still provides what this rig relies on (lib/em-contract.js):
+//   1. the em version is inside the supported range (skip with --any-version);
+//   2. every listed command and flag exists;
+//   3. every em command and flag a guide mentions is listed;
+//   4. the slice lifecycle the guides describe runs end to end on a scratch project;
+//   5. the launcher renders a spec for that project.
+// Needs only Node and em. Exits non-zero on any failure.
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const contract = require('../lib/em-contract');
+const { EM_RANGE } = require('../lib/topology');
+
+const RIG_ROOT = path.resolve(__dirname, '..');
+const anyVersion = process.argv.includes('--any-version');
+const failures = [];
+let passed = 0;
+
+function check(label, ok, detail = '') {
+  if (ok) {
+    passed++;
+  } else {
+    failures.push(`${label}${detail ? `: ${detail}` : ''}`);
+  }
+}
+
+function em(args, cwd) {
+  const res = spawnSync('em', args, { encoding: 'utf8', cwd });
+  return { ok: res.status === 0, status: res.status, out: res.stdout || '', err: res.stderr || '' };
+}
+
+function json(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function cmp(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+}
+
+// 1. version
+const version = em(['--version']).out.trim();
+if (!version) {
+  console.error('check-em-contract: `em` is not on PATH');
+  process.exit(1);
+}
+if (!anyVersion) {
+  check('em version in range', cmp(version, EM_RANGE.atLeast) >= 0 && cmp(version, EM_RANGE.below) < 0, `em ${version} is outside >=${EM_RANGE.atLeast} <${EM_RANGE.below}`);
+}
+
+// 2. commands and flags exist
+const helpText = {};
+for (const [command, flags] of Object.entries(contract.commands)) {
+  const help = em([...command.split(' '), '--help']);
+  helpText[command] = help.out;
+  check(`em ${command} exists`, help.ok && help.out.includes('Usage:'));
+  for (const flag of flags) check(`em ${command} ${flag}`, help.out.includes(flag));
+}
+
+// 3. every em invocation in a guide is listed
+function markdownFiles(entry) {
+  const full = path.join(RIG_ROOT, entry);
+  if (!fs.existsSync(full)) return [];
+  if (fs.statSync(full).isFile()) return full.endsWith('.md') ? [full] : [];
+  return fs.readdirSync(full).flatMap((name) => (name === 'shared' ? [] : markdownFiles(path.join(entry, name))));
+}
+
+function invocations(text) {
+  const spans = [];
+  for (const m of text.matchAll(/`([^`\n]+)`/g)) spans.push(m[1]);
+  for (const block of text.matchAll(/```[a-z]*\n([\s\S]*?)```/g)) spans.push(...block[1].split('\n'));
+  const found = [];
+  for (const span of spans) {
+    // An invocation starts the span, or follows a shell separator; "em" mid-sentence is prose.
+    for (const m of span.matchAll(/(?:^\s*|[|;&(]\s*)em ((?:[a-z][a-z-]*)(?: [a-z][a-z-]*){0,2})([^|;&]*)/g)) {
+      found.push({ words: m[1].split(' '), rest: m[2] });
+    }
+  }
+  return found;
+}
+
+const known = Object.keys(contract.commands);
+const allowedFlags = new Set(contract.mentionedFlags);
+for (const file of contract.guides.flatMap(markdownFiles)) {
+  const rel = path.relative(RIG_ROOT, file);
+  for (const { words, rest } of invocations(fs.readFileSync(file, 'utf8'))) {
+    // Longest listed command that the words start with; a bare family name ("em slice") is fine.
+    let command = null;
+    for (let n = Math.min(words.length, 3); n >= 1 && !command; n--) {
+      const candidate = words.slice(0, n).join(' ');
+      if (known.includes(candidate)) command = candidate;
+    }
+    const family = known.some((k) => k.startsWith(`${words[0]} `));
+    if (!command && !(family && words.length === 1)) {
+      check(`${rel}: em ${words.join(' ')}`, false, 'not listed in lib/em-contract.js');
+      continue;
+    }
+    if (!command) continue;
+    passed++;
+    for (const flag of rest.match(/--[a-z][a-z-]*/g) || []) {
+      check(`${rel}: em ${command} ${flag}`, contract.commands[command].includes(flag) || allowedFlags.has(flag), 'flag not listed in lib/em-contract.js');
+    }
+  }
+}
+
+// 4. the lifecycle, on a scratch project
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'em-contract-'));
+try {
+  check('em scaffold', em(['scaffold', 'fixture'], scratch).ok);
+  const project = path.join(scratch, 'fixture');
+  const model = 'fixture.em';
+  check('em skill install', em(['skill', 'install'], project).ok);
+  for (const skill of contract.skills) {
+    check(`skill ${skill}`, fs.existsSync(path.join(project, '.claude', 'skills', skill, 'SKILL.md')));
+  }
+  check('em skill check', em(['skill', 'check', project]).ok);
+
+  const state = json(em(['state', 'read', project]).out) || {};
+  for (const field of contract.json['state read']) check(`em state read .${field}`, state[field] !== undefined && state[field] !== null);
+  check('em state set-phase --step', em(['state', 'set-phase', 'slice', '--step', '2', project]).ok && (json(em(['state', 'read', project]).out) || {}).phase === 'slice');
+
+  const exported = json(em(['export', model], project).out);
+  const slice = exported && exported.model.slices.find((s) => s.pattern === 'state-change');
+  check('scaffolded model has a state-change slice', Boolean(slice));
+  if (slice) {
+    const key = slice.key;
+    const name = slice.name || key;
+    check('em slice new', em(['slice', 'new', name, '--pattern', 'state-change', '--wire', model], project).ok || em(['slice', 'stub-all', model], project).ok);
+    const doc = path.join(project, 'slices', `${key}.md`);
+    check('slice doc written', fs.existsSync(doc));
+
+    const gate = () => json(em(['validate', model, '--slice-ready', key, '--json'], project).out) || {};
+    check('gate reads not ready on a draft', gate().ready === false);
+    check('em slice ratify refuses an unreviewed doc', !em(['slice', 'ratify', model, key, '--by', 'Pat'], project).ok);
+    check('em slice review --by', em(['slice', 'review', model, key, '--by', 'Pat'], project).ok);
+    check('em slice ratify --by', em(['slice', 'ratify', model, key, '--by', 'Pat'], project).ok);
+    check('gate reads ready once ratified', gate().ready === true);
+
+    fs.appendFileSync(doc, '\n## Invariants\n- **INV-FX-1** — a fixture rule.\n');
+    fs.mkdirSync(path.join(project, 'src', 'test'), { recursive: true });
+    const coverage = (extra = []) => em(['coverage', model, '--slice', key, '--tests', 'src/test', '--strict', ...extra], project);
+    check('scoped coverage fails on an uncited invariant', !coverage().ok);
+    fs.writeFileSync(path.join(project, 'src', 'test', 'FixtureTest.kt'), '// INV-FX-1\n');
+    const covered = coverage(['--json']);
+    const report = json(covered.out) || {};
+    check('scoped coverage passes once cited', covered.ok && report.ok === true && Array.isArray(report.slices) && report.slices.length === 1);
+
+    const one = json(em(['export', model, '--slice', key], project).out) || {};
+    check('em export --slice', Boolean(one.slice && one.slice.pattern && one.slice.doc && one.slice.doc.status === 'ready-to-implement'));
+
+    check('em slice reratify on a ratified, unshipped doc', em(['slice', 'reratify', model, key], project).ok);
+    check('em slice ratify after reratify', em(['slice', 'ratify', model, key, '--by', 'Pat'], project).ok);
+    check('em slice mark-implemented', em(['slice', 'mark-implemented', model, key, 'https://example.com/pr/1'], project).ok);
+    const shipped = json(em(['export', model, '--slice', key], project).out) || {};
+    check('doc is implemented, version 2', Boolean(shipped.slice && shipped.slice.doc.status === 'implemented' && shipped.slice.doc.version === 2));
+    check('em slice index', em(['slice', 'index', model], project).ok);
+
+    const command = (one.slice ? one.slice.elements : []).find((e) => e.kind === 'command');
+    check('em query upstream --of', Boolean(command) && em(['query', 'upstream', model, '--of', command.name], project).ok);
+  }
+
+  const contractText = em(['contract']).out;
+  for (const heading of contract.contractHeadings) check(`em contract has "${heading}"`, contractText.includes(heading));
+
+  // 5. the launcher reads this project
+  const spec = spawnSync(process.execPath, [path.join(RIG_ROOT, 'bin', 'em-factory'), 'spec', project], { encoding: 'utf8' });
+  check('bin/em-factory spec', spec.status === 0 && spec.stdout.includes('em watch fixture.em -o fixture.svg --serve'), spec.stderr.trim());
+} finally {
+  fs.rmSync(scratch, { recursive: true, force: true });
+}
+
+if (failures.length) {
+  console.error(`em contract check FAILED against em ${version}: ${failures.length} failure(s), ${passed} passed`);
+  for (const f of failures) console.error(`  - ${f}`);
+  process.exit(1);
+}
+console.log(`em contract check passed against em ${version}: ${passed} checks`);

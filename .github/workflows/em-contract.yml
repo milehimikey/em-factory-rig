@@ -1,0 +1,43 @@
+# Runs bin/check-em-contract: does em still provide what this rig's guides rely on?
+# "supported" pins the low end of the range in lib/topology.js and must pass.
+# "latest" runs the same checks against the newest em, ignoring the range, so a release
+# that breaks the rig shows up here before anyone widens the range.
+name: em contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: em ${{ matrix.em }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        em: [supported, latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install em
+        run: |
+          if [ "${{ matrix.em }}" = "supported" ]; then
+            version="$(node -p "require('./lib/topology').EM_RANGE.atLeast")"
+          else
+            version="latest"
+          fi
+          npm install -g "@milehimikey/em@${version}"
+          em --version
+      - name: Check the contract
+        run: |
+          if [ "${{ matrix.em }}" = "supported" ]; then
+            node bin/check-em-contract
+          else
+            node bin/check-em-contract --any-version
+          fi
