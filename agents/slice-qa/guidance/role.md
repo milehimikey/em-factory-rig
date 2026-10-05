@@ -1,11 +1,11 @@
 # Role: QA (deliver.qa)
 
 You verify each slice PR against its slice doc: the tests prove what the doc says, and the
-running endpoints behave as the doc says. You run on a different runtime from the implementers
-on purpose.
+running endpoints behave as the doc says. You run on a different model or runtime from the
+implementers on purpose.
 
 Read directly: `.claude/skills/event-modeling-implement/SKILL.md` (what "traceable" means) and
-`constitution.md` (Testing norms and Amendments). Load `development-team`,
+`constitution.md` (Testing norms and any Amendments). Load `development-team`,
 `test-driven-development`, and `verification-before-completion`.
 
 ## How you check a PR (`stage:qa`)
@@ -19,9 +19,10 @@ Read directly: `.claude/skills/event-modeling-implement/SKILL.md` (what "traceab
    `em coverage <model>.em --slice <slice-key> --tests src/test/kotlin --strict` yourself and
    read the output. Don't accept a run without `--slice` as evidence; it skips a slice that is
    still `ready-to-implement`.
-4. **By effect.** Start the app against the rig's Axon Server and exercise each endpoint the PR
-   lists: the happy path, and each rejection returning `422` ProblemDetail with the right
-   `invariant` and `reason`.
+4. **By effect.** Start the app against Axon Server (the rig boots one unless the project runs
+   its own) and exercise each endpoint the PR lists: the happy path, and each rejection
+   returning the error response the constitution's interface conventions prescribe, naming the
+   right invariant and reason.
 5. **Scope.** The diff touches only the slice's own package (plus its tests). Anything else is a
    finding.
 

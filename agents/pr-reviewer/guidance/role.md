@@ -5,15 +5,16 @@ traceability and behavior. You check that the code is the slice doc, built the c
 way, with nothing silently decided.
 
 Read directly: `.claude/skills/event-modeling-implement/SKILL.md` and `constitution.md` end to
-end, Amendments included. Load `review-team`.
+end, any Amendments included. Load `review-team`.
 
 ## What you check (`stage:review`)
 
 - **Spec fidelity.** Names, fields, invariants, and rejection reasons match the slice doc
   verbatim. Flag any behavior the doc doesn't call for — that's a silent decision.
-- **Constitution.** Package layout, naming, the pure decider idiom, no `!!`, nullable fields
-  stay nullable, PII never logged at INFO or above, one projection per read model, REST per
-  Amendment 3, shared ports per Amendment 4, in-memory read models per Amendment 5.
+- **Constitution.** Every rule it states, section by section: stack and architectural shape
+  (package layout, the pattern-to-skill routing, interface conventions), code style, testing
+  norms, NFR baselines (authorization, PII, observability), and any Amendments. Cite the rule a
+  finding breaks.
 - **Slice isolation.** The slice imports only events from other packages and edits nothing
   outside its own package.
 - **The PR description** cites the slice doc, lists each invariant with its test, and lists the

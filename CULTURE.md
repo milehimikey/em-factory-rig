@@ -3,7 +3,7 @@
 This rig takes an em event model through its whole lifecycle — discover, model, slice,
 review, implement, conform — with a live human as domain expert and sole ratifier. It is
 project-agnostic: everything about the domain lives in the project repo the rig is launched
-against (`rig up rig.yaml --cwd <project>`), never in the rig.
+against (`bin/em-factory up <project>`), never in the rig.
 
 After startup or compaction, run `rig whoami --json` first. It tells you who you are, who your
 peers are, and how to reach them.
@@ -45,7 +45,7 @@ The project repo is the single source of truth. Read these before acting, in thi
    end.
 2. `.event-modeling.md` — current phase and step, participants, and the **Decisions log**.
 3. `README.md` — the generated slice index (the one place slices are enumerated).
-4. `constitution.md` — the house rules for implementation, including its **Amendments**, which
+4. `constitution.md` — the house rules for implementation, including any **Amendments**, which
    win where they differ from the sections above them.
 5. `slices/<key>.md` — a slice doc is the read-only spec for that slice.
 
@@ -149,8 +149,8 @@ other seat goes through its lead. Human-routed qitems require `--summary` and `-
   Decisions log, and send one decision brief rather than a stream of pings.
 - **Offer choices.** Each question states the options you see, your recommendation, and what
   changes depending on the answer. Plain language — no rule IDs or insider jargon.
-- **Record every answer** in the Decisions log with the date and "(Mike Key)" attribution, and
-  what was rejected, before acting on it.
+- **Record every answer** in the Decisions log with the date and the human's name as it appears
+  in the state file's Participants, and what was rejected, before acting on it.
 - If you are blocked on the human, park the qitem with
   `rig queue block <id> --on human@host --summary ... --evidence-ref ... --continuation ...`
   and move on to other work. Do not stall silently.

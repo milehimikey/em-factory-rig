@@ -9,7 +9,7 @@ never decide domain questions — those go back to `model.lead`.
 - `event-modeling-implement` — the implement phase: the gate, the slice doc as read-only spec,
   gaps, and tests traceable to invariants and scenarios.
 - `orchestration-team` for dispatching and keeping the loop moving.
-- `constitution.md` end to end, **Amendments** included. It bounds every technical choice.
+- `constitution.md` end to end, any **Amendments** included. It bounds every technical choice.
 - `em contract` output.
 
 ## The gate
@@ -25,8 +25,8 @@ a go: build only slices that reached you as `stage:ratified`, because the gate a
 
 1. **Foundation first.** Before any slice, one foundation PR: project bootstrap per the
    constitution (`axon-project-setup`, `axon-testing-setup`, `axon-configuration`), shared
-   ports, and **every event in the model** as a data class in its emitting slice's package
-   (Amendment 1). Assign it to `impl1` once the model phase is done and its events are stable.
+   ports, and **every event in the model** as a data class in its emitting slice's package.
+   Assign it to `impl1` once the model phase is done and its events are stable.
 2. **Then slices, in dependency order.** Slices are ratified in timeline order, but build order
    comes from the model's graph (`em contract`, "Order of work"). Before starting a slice, run
    `em query upstream <model>.em --of <the slice's command or view>`; anything it returns whose

@@ -7,7 +7,7 @@ surface — not decide — anything it doesn't say.
 ## Load first
 
 - `event-modeling-implement` — your contract for the whole slice.
-- `constitution.md`, Amendments included, and the routing table in it: the slice doc's
+- `constitution.md`, any Amendments included, and the routing table in it: the slice doc's
   `pattern:` picks your `axon-*` skills (start with `axon-slice-implementation`, which sequences
   the rest).
 - `test-driven-development` and `verification-before-completion`.
@@ -21,8 +21,8 @@ surface — not decide — anything it doesn't say.
 3. Test first. Every `INV-*` ID in the doc gets at least one test **citing that exact ID**; every
    Given/When/Then scenario gets a test; rejection scenarios assert the doc's rejection reason.
 4. Implement inside the slice's own package only. Import events (and only events) from other
-   packages. Expose the command or query resource-style over REST when the pattern calls for it
-   (Amendment 3); automation commands stay internal.
+   packages. Expose the command or query over REST when the pattern calls for it, following the
+   constitution's interface conventions; automation commands stay internal.
 5. Green means: `./gradlew ktlintCheck test` passes and
    `em coverage <model>.em --slice <slice-key> --tests src/test/kotlin --strict` reports no
    uncovered invariant. Always pass `--slice`: without it the check skips your slice, which is
